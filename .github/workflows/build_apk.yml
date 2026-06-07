@@ -3,7 +3,7 @@ name: Build Android APK
 on:
   push:
     branches:
-      - main  # اگر آپ کی مین برانچ کا نام master ہے تو یہاں master لکھ دیں
+      - main
 
 jobs:
   build:
@@ -19,18 +19,30 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build APK
-        run: ./gradlew assembleDebug
+      - name: Find and Build APK
+        run: |
+          # یہ کمانڈ خود بخود پراجیکٹ کا فولڈر ڈھونڈے گی جہاں gradlew موجود ہے
+          GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "Error: gradlew not found in any directory!"
+            exit 1
+          fi
+          
+          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+          echo "Project directory found at: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+          
+          # پرمیشن دینا اور بلڈ کرنا
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          
+          # اے پی کے فائل کو گٹ ہب کے مین فولڈر میں منتقل کرنا تاکہ ڈاؤن لوڈ ہو سکے
+          mkdir -p $GITHUB_WORKSPACE/output_apk
+          find . -name "app-debug.apk" -exec cp {} $GITHUB_WORKSPACE/output_apk/smart_timetable.apk \;
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Smart-Timetable-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: output_apk/smart_timetable.apk
           
