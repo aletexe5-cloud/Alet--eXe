@@ -19,21 +19,24 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Find and Build APK
+      - name: Generate Gradle Wrapper & Build APK
         run: |
-          # یہ کمانڈ خود بخود پراجیکٹ کا فولڈر ڈھونڈے گی جہاں gradlew موجود ہے
-          GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "Error: gradlew not found in any directory!"
-            exit 1
-          fi
+          # چونکہ gradlew فائل مسنگ ہے، ہم خود گریڈل ریپ کریں گے تاکہ بلڈ چل سکے
+          gradle wrapper
           
-          PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-          echo "Project directory found at: $PROJECT_DIR"
-          cd "$PROJECT_DIR"
-          
-          # پرمیشن دینا اور بلڈ کرنا
+          # پرمیشن دینا اور فائنل اے پی کے بلڈ کرنا
           chmod +x gradlew
+          ./gradlew assembleDebug
+          
+          # فائل کو آرٹفیکٹ کے لیے الگ فولڈر میں منتقل کرنا
+          mkdir -p output_apk
+          find . -name "app-debug.apk" -exec cp {} output_apk/smart_timetable.apk \;
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Smart-Timetable-APK
+          path: output_apk/smart_timetable.apk
           ./gradlew assembleDebug
           
           # اے پی کے فائل کو گٹ ہب کے مین فولڈر میں منتقل کرنا تاکہ ڈاؤن لوڈ ہو سکے
