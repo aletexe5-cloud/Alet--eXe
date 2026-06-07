@@ -1,0 +1,6 @@
+{
+  "name": "Smart Timetable",
+  "description": "Smart Daily Timetable and Performance Tracker with bilingual Urdu/English tasks, reminders, and performance statistics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
