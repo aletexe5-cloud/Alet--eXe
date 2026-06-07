@@ -19,22 +19,27 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Generate Gradle Wrapper & Build APK
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Fake Debug Keystore & Build APK
         run: |
-          # گریڈل جنریٹ کرنا
+          # گریڈل فائل بنانا اور پرمیشن دینا
           gradle wrapper
           chmod +x gradlew
           
-          # کی اسٹور کا مسئلہ حل کرنے کے لیے دستخط کی سیٹنگ کو بائی پاس کرنا
-          ./gradlew assembleDebug -Pandroid.injected.signing.store.file="" -Pandroid.packageSigning=false || ./gradlew assembleDebug
+          # کلاؤڈ کمپیوٹر کے اندر خود سے debug.keystore فائل جنریٹ کرنا تاکہ ایرر ختم ہو جائے
+          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           
-          # فائل کو آرٹفیکٹ کے لیے الگ فولڈر میں منتقل کرنا
-          mkdir -p output_apk
-          find . -name "*.apk" -exec cp {} output_apk/smart_timetable.apk \;
+          # اگر پراجیکٹ کے اندرونی فولڈر میں فائل چاہیے تو وہاں کاپی کرنا
+          cp debug.keystore app/ || true
+          
+          # اب فائنل بلڈ رن کرنا
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Smart-Timetable-APK
-          path: output_apk/smart_timetable.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           
