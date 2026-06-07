@@ -21,16 +21,16 @@ jobs:
 
       - name: Generate Gradle Wrapper & Build APK
         run: |
-          # چونکہ gradlew فائل مسنگ ہے، ہم خود گریڈل ریپ کریں گے تاکہ بلڈ چل سکے
+          # گریڈل جنریٹ کرنا
           gradle wrapper
-          
-          # پرمیشن دینا اور فائنل اے پی کے بلڈ کرنا
           chmod +x gradlew
-          ./gradlew assembleDebug
+          
+          # کی اسٹور کا مسئلہ حل کرنے کے لیے دستخط کی سیٹنگ کو بائی پاس کرنا
+          ./gradlew assembleDebug -Pandroid.injected.signing.store.file="" -Pandroid.packageSigning=false || ./gradlew assembleDebug
           
           # فائل کو آرٹفیکٹ کے لیے الگ فولڈر میں منتقل کرنا
           mkdir -p output_apk
-          find . -name "app-debug.apk" -exec cp {} output_apk/smart_timetable.apk \;
+          find . -name "*.apk" -exec cp {} output_apk/smart_timetable.apk \;
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
