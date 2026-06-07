@@ -37,15 +37,4 @@ jobs:
         with:
           name: Smart-Timetable-APK
           path: output_apk/smart_timetable.apk
-          ./gradlew assembleDebug
-          
-          # اے پی کے فائل کو گٹ ہب کے مین فولڈر میں منتقل کرنا تاکہ ڈاؤن لوڈ ہو سکے
-          mkdir -p $GITHUB_WORKSPACE/output_apk
-          find . -name "app-debug.apk" -exec cp {} $GITHUB_WORKSPACE/output_apk/smart_timetable.apk \;
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Smart-Timetable-APK
-          path: output_apk/smart_timetable.apk
           
