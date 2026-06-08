@@ -72,10 +72,15 @@ class TimetableViewModel(application: Application) : AndroidViewModel(applicatio
 
         // Continuous ticking clock loop
         viewModelScope.launch {
+            var lastCheckedMinute = -1
             while (true) {
                 val now = Calendar.getInstance()
                 _currentTime.value = now
-                checkTaskTransitionsAndAutoCross(now)
+                val currentMinute = now.get(Calendar.MINUTE)
+                if (currentMinute != lastCheckedMinute) {
+                    lastCheckedMinute = currentMinute
+                    checkTaskTransitionsAndAutoCross(now)
+                }
                 delay(1000)
             }
         }
@@ -262,7 +267,7 @@ class TimetableViewModel(application: Application) : AndroidViewModel(applicatio
                         val todayStr = dateFormat.format(Calendar.getInstance().time)
                         
                         // Query existing logs to avoid duplicate
-                        val currentLogs = repository.allLogs.stateIn(viewModelScope).value
+                        val currentLogs = repository.getLogsSync()
                         val loggedToday = currentLogs.any { it.dateString == todayStr }
 
                         if (!loggedToday) {

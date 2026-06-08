@@ -48,6 +48,10 @@ class TaskRepository(
     }
 
     // Performance log operations
+    suspend fun getLogsSync(): List<PerformanceLog> {
+        return performanceLogDao.getAllLogsSync()
+    }
+
     suspend fun insertLog(log: PerformanceLog) {
         performanceLogDao.insertLog(log)
     }

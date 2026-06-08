@@ -44,6 +44,9 @@ interface PerformanceLogDao {
     @Query("SELECT * FROM performance_logs ORDER BY timestamp DESC")
     fun getAllLogs(): Flow<List<PerformanceLog>>
 
+    @Query("SELECT * FROM performance_logs ORDER BY timestamp DESC")
+    suspend fun getAllLogsSync(): List<PerformanceLog>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertLog(log: PerformanceLog)
 
