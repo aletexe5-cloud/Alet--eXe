@@ -1,4 +1,4 @@
-Name: Build Android APK
+name: Build Android APK
 
 on:
   push:
@@ -24,17 +24,10 @@ jobs:
 
       - name: Generate Fake Debug Keystore & Build APK
         run: |
-          # گریڈل فائل بنانا اور پرمیشن دینا
           gradle wrapper
           chmod +x gradlew
-          
-          # کلاؤڈ کمپیوٹر کے اندر خود سے debug.keystore فائل جنریٹ کرنا تاکہ ایرر ختم ہو جائے
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          
-          # اگر پراجیکٹ کے اندرونی فولڈر میں فائل چاہیے تو وہاں کاپی کرنا
           cp debug.keystore app/ || true
-          
-          # اب فائنل بلڈ رن کرنا
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
