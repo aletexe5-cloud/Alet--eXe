@@ -181,6 +181,10 @@ class TimetableViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun updateTaskStatus(task: Task, isCompleted: Boolean) {
+        val now = Calendar.getInstance()
+        if (isTimeBefore(task.startTime, now) || isTimePastOrEqual(task.endTime, now)) {
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
             val newStatus = if (isCompleted) "COMPLETED" else "PENDING"
             val updated = task.copy(status = newStatus)
