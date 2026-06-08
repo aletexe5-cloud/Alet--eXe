@@ -21,21 +21,12 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    - name: Auto-Generate Missing Gradle Wrapper
+    - name: Force Build Android Project Without Wrapper
       run: |
-        if [ ! -f "gradlew" ]; then
-          echo "gradlew missing! Auto-generating standard gradle wrapper..."
-          gradle wrapper --gradle-version 8.2
-        else
-          echo "gradlew found."
-        fi
-        chmod +x gradlew
-
-    - name: Clean Project and Fix Cloud Warnings
-      run: ./gradlew clean --no-daemon
-
-    - name: Build Premium Debug APK
-      run: ./gradlew assembleDebug --stacktrace --info --no-daemon
+        echo "Installing global gradle to bypass missing files..."
+        sudo apt-get update && sudo apt-get install -y gradle
+        echo "Executing clean and build via system gradle..."
+        gradle clean assembleDebug --stacktrace --no-daemon
 
     - name: Upload Clean APK Artifact
       uses: actions/upload-artifact@v4
