@@ -215,30 +215,50 @@ class TimetableViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun isTimeBefore(timeStr: String, now: Calendar): Boolean {
+        val parts = timeStr.split(":")
+        if (parts.size != 2) return false
+        val h = parts[0].toIntOrNull() ?: return false
+        val m = parts[1].toIntOrNull() ?: return false
+        
+        val nowH = now.get(Calendar.HOUR_OF_DAY)
+        val nowM = now.get(Calendar.MINUTE)
+        
+        return (nowH < h) || (nowH == h && nowM < m)
+    }
+
+    fun isTimePastOrEqual(timeStr: String, now: Calendar): Boolean {
+        val parts = timeStr.split(":")
+        if (parts.size != 2) return false
+        val h = parts[0].toIntOrNull() ?: return false
+        val m = parts[1].toIntOrNull() ?: return false
+        
+        val nowH = now.get(Calendar.HOUR_OF_DAY)
+        val nowM = now.get(Calendar.MINUTE)
+        
+        return (nowH > h) || (nowH == h && nowM >= m)
+    }
+
     private fun checkTaskTransitionsAndAutoCross(now: Calendar) {
         val tasks = allTasks.value
         if (tasks.isEmpty()) return
 
-        val hourNow = now.get(Calendar.HOUR_OF_DAY)
-        val minuteNow = now.get(Calendar.MINUTE)
-        val timeNowStr = String.format(Locale.getDefault(), "%02d:%02d", hourNow, minuteNow)
-
         viewModelScope.launch(Dispatchers.IO) {
             tasks.forEach { task ->
-                // Start Time Trigger (Reminds at Start Time)
-                if (task.startTime == timeNowStr && !task.notified) {
+                // Start Time Trigger (Reminds at Start Time or if past and not notified)
+                if (isTimePastOrEqual(task.startTime, now) && !task.notified) {
                     val updated = task.copy(notified = true)
                     repository.updateTask(updated)
                     sendLocalBroadcast(AlarmReceiver.ACTION_TASK_REMINDER, task)
                 }
 
-                // End Time Trigger (If PENDING, mark as FAILED and log/alert)
-                if (task.endTime == timeNowStr && !task.endNotified) {
+                // End Time Trigger (If PENDING and past End Time, automatically mark as FAILED, lock, and notify)
+                if (isTimePastOrEqual(task.endTime, now)) {
                     if (task.status == "PENDING") {
-                        val updated = task.copy(status = "FAILED", endNotified = true)
+                        val updated = task.copy(status = "FAILED", endNotified = true, isLocked = true)
                         repository.updateTask(updated)
                         sendLocalBroadcast(AlarmReceiver.ACTION_TASK_END_REMINDER, task)
-                    } else {
+                    } else if (!task.endNotified) {
                         val updated = task.copy(endNotified = true)
                         repository.updateTask(updated)
                     }

@@ -458,6 +458,10 @@ fun MainAppScreen() {
                                                 modifier = Modifier.weight(0.12f),
                                                 contentAlignment = Alignment.Center
                                             ) {
+                                                val isBefore = viewModel.isTimeBefore(task.startTime, currentTime)
+                                                val isAfter = viewModel.isTimePastOrEqual(task.endTime, currentTime)
+                                                val isOutside = isBefore || isAfter
+
                                                 if (task.status == "FAILED") {
                                                     Icon(
                                                         imageVector = Icons.Default.Close,
@@ -470,20 +474,36 @@ fun MainAppScreen() {
                                                         Icon(
                                                             imageVector = Icons.Default.CheckCircle,
                                                             contentDescription = "Completed",
-                                                            tint = NeonSuccess,
+                                                            tint = if (isOutside) NeonSuccess.copy(alpha = 0.5f) else NeonSuccess,
                                                             modifier = Modifier
                                                                 .size(24.dp)
                                                                 .clickable {
-                                                                    viewModel.updateTaskStatus(task, false)
+                                                                    if (isBefore) {
+                                                                        val msg = if (isUrdu) "یہ مشغلہ ابھی شروع نہیں ہوا ہے!" else "This task hasn't started yet!"
+                                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                                    } else if (isAfter) {
+                                                                        val msg = if (isUrdu) "اس مشغلے کا وقت ختم ہو چکا ہے!" else "This task has already expired!"
+                                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                                    } else {
+                                                                        viewModel.updateTaskStatus(task, false)
+                                                                    }
                                                                 }
                                                         )
                                                     } else {
                                                         Box(
                                                             modifier = Modifier
                                                                 .size(22.dp)
-                                                                .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                                                                .border(2.dp, if (isOutside) Color.White.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.4f), CircleShape)
                                                                 .clickable {
-                                                                    viewModel.updateTaskStatus(task, true)
+                                                                    if (isBefore) {
+                                                                        val msg = if (isUrdu) "یہ مشغلہ ابھی شروع نہیں ہوا ہے!" else "This task hasn't started yet!"
+                                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                                    } else if (isAfter) {
+                                                                        val msg = if (isUrdu) "اس مشغلے کا وقت ختم ہو چکا ہے!" else "This task has already expired!"
+                                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                                    } else {
+                                                                        viewModel.updateTaskStatus(task, true)
+                                                                    }
                                                                 }
                                                         )
                                                     }
