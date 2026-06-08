@@ -21,19 +21,31 @@ jobs:
         java-version: '17'
         cache: 'gradle'
 
-    - name: Grant Execute Permission for Gradle
-      run: chmod +x gradlew
+    - name: Find and Grant Execute Permission for Gradle
+      run: |
+        GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "Error: gradlew file not found anywhere in the repository!"
+          exit 1
+        fi
+        echo "Found gradlew at: $GRADLEW_PATH"
+        chmod +x "$GRADLEW_PATH"
+        echo "GRADLEW_DIR=$(dirname "$GRADLEW_PATH")" >> $GITHUB_ENV
 
     - name: Clean Project and Fix Cloud Warnings
-      run: ./gradlew clean --no-daemon
+      run: |
+        cd ${{ env.GRADLEW_DIR }}
+        ./gradlew clean --no-daemon
 
     - name: Build Premium Debug APK
-      run: ./gradlew assembleDebug --stacktrace --info --no-daemon
+      run: |
+        cd ${{ env.GRADLEW_DIR }}
+        ./gradlew assembleDebug --stacktrace --info --no-daemon
 
     - name: Upload Clean APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: TimeFlow-Premium-APK
-        path: app/build/outputs/apk/debug/*.apk
+        path: "**/build/outputs/apk/debug/*.apk"
         retention-days: 7
         
