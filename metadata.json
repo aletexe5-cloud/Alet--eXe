@@ -1,6 +1,6 @@
 {
-  "name": "Smart Timetable",
-  "description": "Smart Daily Timetable and Performance Tracker with bilingual Urdu/English tasks, reminders, and performance statistics.",
+  "name": "TimeFlow",
+  "description": "Premium Smart Timetable and Performance Tracker with automatic tracking and logging interfaces.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

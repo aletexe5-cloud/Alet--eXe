@@ -7,9 +7,12 @@ import androidx.room.PrimaryKey
 data class Task(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
-    val targetTime: String, // format: "HH:mm"
+    val startTime: String, // format: "HH:mm"
+    val endTime: String,   // format: "HH:mm"
     val displayOrder: Int,
-    val status: String = "PENDING", // PENDING, COMPLETED, INCOMPLETE
+    val status: String = "PENDING", // PENDING, COMPLETED, FAILED
+    val isLocked: Boolean = false,  // true for permanent prayer tasks or locked custom tasks
     val isNew: Boolean = true,
-    val notified: Boolean = false
+    val notified: Boolean = false,
+    val endNotified: Boolean = false
 )

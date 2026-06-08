@@ -50,10 +50,31 @@ class AlarmReceiver : BroadcastReceiver() {
 
                         showNotification(
                             context = context,
-                            title = "Smart Schedule: $taskName",
+                            title = "TimeFlow: $taskName Starts Now",
                             text = "It's $taskTime! Time to perform your scheduled task.",
                             notificationId = taskId.coerceAtLeast(1)
                         )
+                    }
+                    ACTION_TASK_END_REMINDER -> {
+                        val taskId = intent.getIntExtra(EXTRA_TASK_ID, -1)
+                        val taskName = intent.getStringExtra(EXTRA_TASK_NAME) ?: "Task Schedule"
+                        val taskTime = intent.getStringExtra(EXTRA_TASK_TIME) ?: ""
+
+                        if (taskId != -1) {
+                            val tasks = taskDao.getTasksSync()
+                            val t = tasks.find { it.id == taskId }
+                            if (t != null && t.status == "PENDING") {
+                                // Auto mark as FAILED
+                                taskDao.updateTask(t.copy(status = "FAILED", endNotified = true))
+                                
+                                showNotification(
+                                    context = context,
+                                    title = "TimeFlow: Task Missed! ❌",
+                                    text = "Task '$taskName' has reached its End Time ($taskTime) and is marked as Failed.",
+                                    notificationId = taskId + 20002
+                                )
+                            }
+                        }
                     }
                     ACTION_DAILY_RESET -> {
                         val tasks = taskDao.getTasksSync()
@@ -79,18 +100,21 @@ class AlarmReceiver : BroadcastReceiver() {
                             // Show final notification
                             showNotification(
                                 context = context,
-                                title = "Schedule Review: $percent% Achieved!",
-                                text = "Tasks: $completed / $total. Timetable has reset for tomorrow's performance progress.",
+                                title = "TimeFlow: Daily Reset Completed!",
+                                text = "Your daily success rate: $percent%. Schedule reset for tomorrow.",
                                 notificationId = 9999
                             )
 
-                            // Reset database tasks
+                            // Delete unlocked tasks and reset locked tasks
+                            taskDao.deleteUnlockedTasks()
                             taskDao.resetAllTasks()
                         }
                     }
                 }
             } catch (e: Exception) {
                 Log.e("AlarmReceiver", "Error processing alarm", e)
+            } catch (t: Throwable) {
+                Log.e("AlarmReceiver", "Fatal throwable alarm logic", t)
             } finally {
                 pendingResult.finish()
             }
@@ -98,16 +122,16 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     private fun showNotification(context: Context, title: String, text: String, notificationId: Int) {
-        val channelId = "timetable_reminders"
+        val channelId = "timeflow_reminders"
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
-                "Timetable Reminders",
+                "TimeFlow Reminders",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifications for scheduled tasks and performance updates"
+                description = "Notifications for TimeFlow tasks and alerts"
             }
             manager.createNotificationChannel(channel)
         }
@@ -137,6 +161,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_TASK_REMINDER = "com.example.receiver.ACTION_TASK_REMINDER"
+        const val ACTION_TASK_END_REMINDER = "com.example.receiver.ACTION_TASK_END_REMINDER"
         const val ACTION_DAILY_RESET = "com.example.receiver.ACTION_DAILY_RESET"
 
         const val EXTRA_TASK_ID = "extra_task_id"
@@ -146,53 +171,96 @@ class AlarmReceiver : BroadcastReceiver() {
         fun scheduleAlarmForTask(context: Context, task: Task) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
             
-            val parts = task.targetTime.split(":")
-            if (parts.size != 2) return
-            val hour = parts[0].toIntOrNull() ?: return
-            val minute = parts[1].toIntOrNull() ?: return
-            
-            val calendar = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, hour)
-                set(Calendar.MINUTE, minute)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
+            // 1. Schedule alarm for startTime
+            val partsStart = task.startTime.split(":")
+            if (partsStart.size == 2) {
+                val hour = partsStart[0].toIntOrNull() ?: 0
+                val minute = partsStart[1].toIntOrNull() ?: 0
                 
-                if (timeInMillis < System.currentTimeMillis()) {
-                    add(Calendar.DAY_OF_YEAR, 1)
+                val calendar = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    if (timeInMillis < System.currentTimeMillis()) {
+                        add(Calendar.DAY_OF_YEAR, 1)
+                    }
+                }
+                
+                val intent = Intent(context, AlarmReceiver::class.java).apply {
+                    action = ACTION_TASK_REMINDER
+                    putExtra(EXTRA_TASK_ID, task.id)
+                    putExtra(EXTRA_TASK_NAME, task.name)
+                    putExtra(EXTRA_TASK_TIME, task.startTime)
+                }
+                
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    task.id,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                    } else {
+                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                    }
+                } catch (e: SecurityException) {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                } catch (t: Throwable) {
+                    Log.e("AlarmReceiver", "Failed to schedule exact alarm for startTime", t)
                 }
             }
-            
-            val intent = Intent(context, AlarmReceiver::class.java).apply {
-                action = ACTION_TASK_REMINDER
-                putExtra(EXTRA_TASK_ID, task.id)
-                putExtra(EXTRA_TASK_NAME, task.name)
-                putExtra(EXTRA_TASK_TIME, task.targetTime)
-            }
-            
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                task.id,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-                } else {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+
+            // 2. Schedule alarm for endTime (for auto-cross and notification)
+            val partsEnd = task.endTime.split(":")
+            if (partsEnd.size == 2) {
+                val hour = partsEnd[0].toIntOrNull() ?: 0
+                val minute = partsEnd[1].toIntOrNull() ?: 0
+                
+                val calendar = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, hour)
+                    set(Calendar.MINUTE, minute)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    if (timeInMillis < System.currentTimeMillis()) {
+                        add(Calendar.DAY_OF_YEAR, 1)
+                    }
                 }
-                Log.d("AlarmReceiver", "Scheduled alarm for task ${task.id} (${task.name}) at ${task.targetTime}")
-            } catch (e: SecurityException) {
-                // If permission is not given yet, fall back to normal set
-                alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-                Log.w("AlarmReceiver", "Exact alarm security restriction. Scheduled standard alarm.", e)
+                
+                val intent = Intent(context, AlarmReceiver::class.java).apply {
+                    action = ACTION_TASK_END_REMINDER
+                    putExtra(EXTRA_TASK_ID, task.id)
+                    putExtra(EXTRA_TASK_NAME, task.name)
+                    putExtra(EXTRA_TASK_TIME, task.endTime)
+                }
+                
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    task.id + 10000, // Offset request code for end reminder
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                    } else {
+                        alarmManager.setExact(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                    }
+                } catch (e: SecurityException) {
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
+                } catch (t: Throwable) {
+                    Log.e("AlarmReceiver", "Failed to schedule exact alarm for endTime", t)
+                }
             }
         }
 
-        fun scheduleDailyReset(context: Context, lastTaskTime: String) {
+        fun scheduleDailyReset(context: Context, lastTaskEndTime: String) {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val parts = lastTaskTime.split(":")
+            val parts = lastTaskEndTime.split(":")
             if (parts.size != 2) return
             val hour = parts[0].toIntOrNull() ?: return
             val minute = parts[1].toIntOrNull() ?: return
@@ -202,7 +270,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 set(Calendar.MINUTE, minute)
                 set(Calendar.SECOND, 0)
                 set(Calendar.MILLISECOND, 0)
-                add(Calendar.MINUTE, 10) // exactly 10 minutes trailing
+                add(Calendar.MINUTE, 5) // Reset daily helper exactly 5 minutes after last task's End Time
                 
                 if (timeInMillis < System.currentTimeMillis()) {
                     add(Calendar.DAY_OF_YEAR, 1)
@@ -226,10 +294,10 @@ class AlarmReceiver : BroadcastReceiver() {
                 } else {
                     alarmManager.setExact(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
                 }
-                Log.d("AlarmReceiver", "Scheduled daily reset helper exactly 10 minutes after last task $lastTaskTime (Reset at: ${Calendar.getInstance().apply { timeInMillis = calendar.timeInMillis }.time})")
             } catch (e: SecurityException) {
                 alarmManager.set(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, pendingIntent)
-                Log.w("AlarmReceiver", "Exact alarm security restriction. Reset scheduled standard.", e)
+            } catch (t: Throwable) {
+                Log.e("AlarmReceiver", "Failed to schedule daily reset timer", t)
             }
         }
 
@@ -247,7 +315,20 @@ class AlarmReceiver : BroadcastReceiver() {
             if (pendingIntent != null) {
                 alarmManager.cancel(pendingIntent)
                 pendingIntent.cancel()
-                Log.d("AlarmReceiver", "Cancelled alarm for task $taskId")
+            }
+
+            val intentEnd = Intent(context, AlarmReceiver::class.java).apply {
+                action = ACTION_TASK_END_REMINDER
+            }
+            val pendingIntentEnd = PendingIntent.getBroadcast(
+                context,
+                taskId + 10000,
+                intentEnd,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (pendingIntentEnd != null) {
+                alarmManager.cancel(pendingIntentEnd)
+                pendingIntentEnd.cancel()
             }
         }
 
@@ -265,7 +346,6 @@ class AlarmReceiver : BroadcastReceiver() {
             if (pendingIntent != null) {
                 alarmManager.cancel(pendingIntent)
                 pendingIntent.cancel()
-                Log.d("AlarmReceiver", "Cancelled daily reset alarm")
             }
         }
     }

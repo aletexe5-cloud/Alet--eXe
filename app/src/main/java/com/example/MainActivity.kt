@@ -1,19 +1,16 @@
 package com.example
 
 import android.app.TimePickerDialog
-import android.content.Context
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,10 +26,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -44,18 +42,86 @@ import com.example.data.PerformanceLog
 import com.example.data.Task
 import com.example.ui.theme.*
 import com.example.viewmodel.TimetableViewModel
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MainAppScreen()
+                MainAppContainer()
             }
         }
+    }
+}
+
+@Composable
+fun MainAppContainer() {
+    var isSplashFinished by remember { mutableStateOf(false) }
+    var loadingProgress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        val duration = 2500L
+        val interval = 50L
+        val steps = (duration / interval).toInt()
+        for (i in 1..steps) {
+            delay(interval)
+            loadingProgress = i.toFloat() / steps.toFloat()
+        }
+        isSplashFinished = true
+    }
+
+    if (!isSplashFinished) {
+        // Pure Dark Black Splash Screen
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                // Core Logo exactly as provided
+                Image(
+                    painter = painterResource(id = R.drawable.ic_vhgpl_logo_1780901353805),
+                    contentDescription = "VHGPL Technology & AI Logo",
+                    modifier = Modifier
+                        .size(180.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "VHGPL Technology & AI",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = PremiumGold,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Premium minimalist horizontal loading bar
+                LinearProgressIndicator(
+                    progress = { loadingProgress },
+                    color = PremiumGold,
+                    trackColor = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier
+                        .width(200.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                )
+            }
+        }
+    } else {
+        // Main Screen Interface
+        MainAppScreen()
     }
 }
 
@@ -66,10 +132,15 @@ fun MainAppScreen() {
     val tasks by viewModel.allTasks.collectAsStateWithLifecycle()
     val logs by viewModel.allLogs.collectAsStateWithLifecycle()
     val currentTime by viewModel.currentTime.collectAsStateWithLifecycle()
-    val showReport by viewModel.showPerformanceSummary.collectAsStateWithLifecycle()
+    val isUrdu by viewModel.isUrduEnabled.collectAsStateWithLifecycle()
 
     var showAddTask by remember { mutableStateOf(false) }
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Schedule, 1 = Progress Logs
+    var showSettings by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Schedule, 1 = History
+
+    var editingTaskTiming by remember { mutableStateOf<Task?>(null) }
+    var editingTaskName by remember { mutableStateOf<Task?>(null) }
+
     val context = LocalContext.current
 
     // Notifications permission handler
@@ -89,72 +160,59 @@ fun MainAppScreen() {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_vhgpl_logo_1780901353805),
+                            contentDescription = "Logo",
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                "Smart Timetable",
+                                if (isUrdu) "ٹائم فلو" else "TimeFlow",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = PremiumGold
                             )
                             Text(
-                                "بامقصد اور منظم زندگی",
+                                "VHGPL Technology & AI",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = Color.White.copy(alpha = 0.6f)
                             )
                         }
                     }
                 },
                 actions = {
-                    // Quick Preset Populator (Excellent first experience option!)
-                    TextButton(
-                        onClick = {
-                            viewModel.populatePresetSchedule()
-                            Toast.makeText(context, "Loaded 20 preset tasks schedule!", Toast.LENGTH_SHORT).show()
-                        },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Presets")
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Presets")
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = PremiumGold
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Black
                 )
             )
         },
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
+                containerColor = DarkGreySurface,
                 tonalElevation = 8.dp
             ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.List, contentDescription = "Active Schedule") },
-                    label = { Text("Timetable") },
-                    modifier = Modifier.testTag("nav_timetable_tab")
+                    label = { Text(if (isUrdu) "شیڈول" else "Schedule") }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Performance Logging") },
-                    label = { Text("History") },
-                    modifier = Modifier.testTag("nav_history_tab")
+                    icon = { Icon(Icons.Default.Star, contentDescription = "Performance History") },
+                    label = { Text(if (isUrdu) "کارکردگی ریکارڈ" else "Logs History") }
                 )
             }
         },
@@ -162,8 +220,8 @@ fun MainAppScreen() {
             if (selectedTab == 0) {
                 FloatingActionButton(
                     onClick = { showAddTask = true },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    containerColor = PremiumGold,
+                    contentColor = PureBlack,
                     modifier = Modifier.testTag("add_task_fab")
                 ) {
                     Icon(imageVector = Icons.Default.Add, contentDescription = "Add Task")
@@ -175,539 +233,562 @@ fun MainAppScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+                .background(Color.Black)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
-                // Header Time Clock Widget
-                ClockHeaderCard(currentTime = currentTime, viewModel = viewModel, tasks = tasks)
+                // Header Time Clock Widget (Displays CURRENT DATE & LIVE CLOCK only)
+                ClockHeaderCard(currentTime = currentTime, isUrdu = isUrdu)
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 if (selectedTab == 0) {
-                    // Timetable view tab inside list
+                    // Schedule Task Table Layout
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Daily Schedule / روزانہ کے مَشاغِل",
+                            text = if (isUrdu) "آج کے مَشاغِل" else "Daily Schedule",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = PremiumGold
                         )
+                    }
 
-                        TextButton(
-                            onClick = { viewModel.clearAllTasks() },
-                            colors = ButtonDefaults.textButtonColors(contentColor = NeonError)
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (tasks.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear All", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Clear All")
+                            Text(
+                                if (isUrdu) "کوئی مشغلہ نہیں ہے۔ نیا شامل کریں!" else "No tasks scheduled for today. Add one!",
+                                color = SilveryGrey,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(bottom = 16.dp)
+                        ) {
+                            item {
+                                // Strictly Structured Table Grid Layout
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outline,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DarkGreySurface)
+                                ) {
+                                    // Table Headers Row
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(DeepSapphireVariant)
+                                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (isUrdu) "نمبر شمار" else "ID",
+                                            modifier = Modifier.weight(0.12f),
+                                            fontWeight = FontWeight.Bold,
+                                            color = PremiumGold,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            text = if (isUrdu) "ٹاسک نام" else "Task Name",
+                                            modifier = Modifier.weight(0.38f),
+                                            fontWeight = FontWeight.Bold,
+                                            color = PremiumGold,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            text = if (isUrdu) "لاک" else "Lock",
+                                            modifier = Modifier.weight(0.12f),
+                                            fontWeight = FontWeight.Bold,
+                                            color = PremiumGold,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            text = if (isUrdu) "شروع" else "Start",
+                                            modifier = Modifier.weight(0.14f),
+                                            fontWeight = FontWeight.Bold,
+                                            color = PremiumGold,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            text = if (isUrdu) "ختم" else "End",
+                                            modifier = Modifier.weight(0.14f),
+                                            fontWeight = FontWeight.Bold,
+                                            color = PremiumGold,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            text = if (isUrdu) "حالت" else "Status",
+                                            modifier = Modifier.weight(0.12f),
+                                            fontWeight = FontWeight.Bold,
+                                            color = PremiumGold,
+                                            textAlign = TextAlign.Center,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+
+                                    // Tasks Records Loop
+                                    tasks.forEachIndexed { index, task ->
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Sequence Sequence ID Number
+                                            Text(
+                                                text = "${index + 1}",
+                                                modifier = Modifier.weight(0.12f),
+                                                textAlign = TextAlign.Center,
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+
+                                            // Task Name Field (Accepts & seamlessly displays Urdu & English scripts)
+                                            val containsUrdu = task.name.any { it.code in 0x0600..0x06FF }
+                                            Text(
+                                                text = task.name,
+                                                modifier = Modifier
+                                                    .weight(0.38f)
+                                                    .clickable { editingTaskName = task },
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    textDirection = if (containsUrdu) TextDirection.Rtl else TextDirection.Ltr
+                                                ),
+                                                fontWeight = FontWeight.Medium
+                                            )
+
+                                            // Lock status column (Locks/unlocks custom tasks, prayer tasks are hard locked)
+                                            Row(
+                                                modifier = Modifier.weight(0.12f),
+                                                horizontalArrangement = Arrangement.Center,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Lock,
+                                                    contentDescription = "Lock icon",
+                                                    tint = if (task.isLocked) PremiumGold else Color.White.copy(alpha = 0.35f),
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clickable {
+                                                            // Prayer tasks are hard-locked cannot be edited/unlocked for delete protection
+                                                            val lowercaseName = task.name.lowercase()
+                                                            if (lowercaseName.contains("fajr") ||
+                                                                lowercaseName.contains("dhuhr") ||
+                                                                lowercaseName.contains("asr") ||
+                                                                lowercaseName.contains("maghrib") ||
+                                                                lowercaseName.contains("isha") ||
+                                                                lowercaseName.contains("نماز")
+                                                            ) {
+                                                                Toast.makeText(context, "Prayer tasks must remain permanent daily locks!", Toast.LENGTH_SHORT).show()
+                                                            } else {
+                                                                viewModel.toggleTaskLock(task)
+                                                            }
+                                                        }
+                                                        .padding(2.dp)
+                                                )
+
+                                                // Deletion Trash appears only for Unlocked tasks
+                                                if (!task.isLocked) {
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "Delete Icon",
+                                                        tint = NeonError,
+                                                        modifier = Modifier
+                                                            .size(22.dp)
+                                                            .clickable { viewModel.deleteTask(task) }
+                                                    )
+                                                }
+                                            }
+
+                                            // Trigger Start Time (Click to edit)
+                                            Text(
+                                                text = task.startTime,
+                                                modifier = Modifier
+                                                    .weight(0.14f)
+                                                    .clickable { editingTaskTiming = task },
+                                                color = PremiumGold,
+                                                textAlign = TextAlign.Center,
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+
+                                            // Deadline End Time (Click to edit)
+                                            Text(
+                                                text = task.endTime,
+                                                modifier = Modifier
+                                                    .weight(0.14f)
+                                                    .clickable { editingTaskTiming = task },
+                                                color = PremiumGold,
+                                                textAlign = TextAlign.Center,
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+
+                                            // Status Action Goal
+                                            Box(
+                                                modifier = Modifier.weight(0.12f),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (task.status == "FAILED") {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Failed",
+                                                        tint = NeonError,
+                                                        modifier = Modifier.size(22.dp)
+                                                    )
+                                                } else {
+                                                    if (task.status == "COMPLETED") {
+                                                        Icon(
+                                                            imageVector = Icons.Default.CheckCircle,
+                                                            contentDescription = "Completed",
+                                                            tint = NeonSuccess,
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .clickable {
+                                                                    viewModel.updateTaskStatus(task, false)
+                                                                }
+                                                        )
+                                                    } else {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .size(22.dp)
+                                                                .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                                                                .clickable {
+                                                                    viewModel.updateTaskStatus(task, true)
+                                                                }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    if (tasks.isEmpty()) {
-                        EmptyStateWidget {
-                            viewModel.populatePresetSchedule()
+                    // Daily Performance Score placed at the very bottom below the end of the task table
+                    BottomScoreSection(viewModel = viewModel, tasks = tasks, currentTime = currentTime, isUrdu = isUrdu)
+
+                } else {
+                    // History Record List (No clear buttons exist, preventing manual purging)
+                    Text(
+                        text = if (isUrdu) "کارکردگی لاگ ریکارڈ" else "Historical Success Log",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = PremiumGold,
+                        modifier = Modifier.padding(vertical = 6.dp)
+                    )
+
+                    if (logs.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                if (isUrdu) "ابھی تک کوئی لاگ ریکارڈ نہیں ہوا۔ ٹاسک ختم ہونے پر پانچ منٹ انتظار کریں!" else "No performance history logged yet. Complete tasks and wait 5 minutes after the daily deadline highlights!",
+                                color = SilveryGrey,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(24.dp)
+                            )
                         }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(bottom = 80.dp)
+                            contentPadding = PaddingValues(bottom = 16.dp)
                         ) {
-                            items(tasks, key = { it.id }) { task ->
-                                TaskCard(
-                                    task = task,
-                                    onStatusChange = { status ->
-                                        viewModel.updateTaskStatus(task, status)
-                                    },
-                                    onDelete = {
-                                        viewModel.deleteTask(task)
-                                    },
-                                    onSimulateAlarm = {
-                                        viewModel.simulateTaskReminder(task)
-                                        Toast.makeText(context, "Simulation reminder sent for ${task.name}!", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    // History view tab inside list
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Performance History / کارکردگی کا لاگ",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        
-                        TextButton(
-                            onClick = { viewModel.clearAllHistory() },
-                            colors = ButtonDefaults.textButtonColors(contentColor = NeonError)
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Clear Logs", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Clear History")
-                        }
-                    }
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 80.dp)
-                    ) {
-                        item {
-                            // Historical Canvas chart mapping percentage progressions
-                            PerformanceHistoryChart(logs = logs)
-                        }
-
-                        if (logs.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(48.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "No history logged yet. Complete today's tasks and wait or click Simulation Reset to start logging tracking data!",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = SilveryBlue,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        } else {
                             items(logs) { log ->
-                                HistoryListItem(log = log, onDelete = { viewModel.clearAllHistory() })
+                                LogRecordRow(log = log, isUrdu = isUrdu)
+                                Spacer(modifier = Modifier.height(10.dp))
                             }
                         }
                     }
                 }
             }
 
-            // Dialog Popups
+            // Dialog popup modals
             if (showAddTask) {
                 AddTaskDialog(
+                    isUrdu = isUrdu,
                     onDismiss = { showAddTask = false },
-                    onAdd = { name, time ->
-                        viewModel.addTask(name, time)
+                    onAdd = { name, start, end ->
+                        viewModel.addTask(name, start, end)
                         showAddTask = false
                     }
                 )
             }
 
-            if (showReport != null) {
-                SummaryDialog(
-                    report = showReport!!,
-                    onDismiss = { viewModel.dismissPerformanceReport() }
+            if (showSettings) {
+                SettingsDialog(
+                    isUrdu = isUrdu,
+                    onDismiss = { showSettings = false },
+                    onToggleUrdu = {
+                        viewModel.toggleUrduSupport(it)
+                    }
+                )
+            }
+
+            if (editingTaskTiming != null) {
+                EditTimingDialog(
+                    task = editingTaskTiming!!,
+                    isUrdu = isUrdu,
+                    onDismiss = { editingTaskTiming = null },
+                    onSave = { start, end ->
+                        viewModel.updateTaskTimings(editingTaskTiming!!, start, end)
+                        editingTaskTiming = null
+                    }
+                )
+            }
+
+            if (editingTaskName != null) {
+                EditNameDialog(
+                    task = editingTaskName!!,
+                    isUrdu = isUrdu,
+                    onDismiss = { editingTaskName = null },
+                    onSave = { newName ->
+                        viewModel.updateTaskName(editingTaskName!!, newName)
+                        editingTaskName = null
+                    }
                 )
             }
         }
     }
 }
 
+// Global live clock and current date display card (strictly shows ONLY live clock and Gregorian calendar format/Urdu day)
 @Composable
 fun ClockHeaderCard(
     currentTime: Calendar,
-    viewModel: TimetableViewModel,
-    tasks: List<Task>
+    isUrdu: Boolean
 ) {
-    val formatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-    val dateToken = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault())
-    val urduDateToken = SimpleDateFormat("EEEE, d MMMM", Locale("ur"))
-
-    val trailingSeconds = viewModel.getTrailingResetSecondsRemaining(currentTime)
+    val timeFormatter = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val dateTokenUrdu = SimpleDateFormat("EEEE, d MMMM yyyy", Locale("ur"))
+    val dateTokenEnglish = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault())
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
+            .padding(vertical = 12.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = dateToken.format(currentTime.time),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = urduDateToken.format(currentTime.time),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
+            Column {
+                Text(
+                    text = if (isUrdu) "صنعت تاریخ" else "CURRENT DATE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PremiumGold,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isUrdu) dateTokenUrdu.format(currentTime.time) else dateTokenEnglish.format(currentTime.time),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
 
-                // Digital live clock
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = if (isUrdu) "براہ راست گھڑی" else "LIVE CLOCK",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PremiumGold,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(PremiumGold.copy(alpha = 0.15f))
+                        .border(0.5.dp, PremiumGold, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = formatter.format(currentTime.time),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary,
+                        text = timeFormatter.format(currentTime.time),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontFamily = FontFamily.Monospace,
+                        color = PremiumGold,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Trail Timer or Score Progress Tracker
-            if (trailingSeconds != null) {
-                // Showing trailing reset timer warning
-                val mins = trailingSeconds / 60
-                val secs = trailingSeconds % 60
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Brush.horizontalGradient(listOf(NeonError.copy(alpha = 0.15f), ActiveOrange.copy(alpha = 0.15f))))
-                        .border(1.dp, ActiveOrange, RoundedCornerShape(12.dp))
-                        .padding(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "🔒 Reset countdown underway!",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = ActiveOrange
-                            )
-                            Text(
-                                text = "سکور لاک ہونے اور فائل ری سیٹ میں وقت",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = SilveryBlue
-                            )
-                        }
-                        Text(
-                            text = String.format(Locale.getDefault(), "%02dm %02ds", mins, secs),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = ActiveOrange,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
-                    }
-                }
-            } else {
-                // Visual progress completed bar overview
-                val totalCount = tasks.size
-                val completedCount = tasks.count { it.status == "COMPLETED" }
-                val percentProgress = if (totalCount > 0) (completedCount * 100) / totalCount else 0
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "Daily Compliance (آج کا کُل رزلٹ)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = SilveryBlue
-                        )
-                        Text(
-                            text = "$percentProgress% ($completedCount/$totalCount)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { if (totalCount > 0) completedCount.toFloat() / totalCount.toFloat() else 0f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(CircleShape),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Developer Simulation Control panel with beautiful border
+// Settings Dialog containing premium global bilingual Urdu toggler switch
+@Composable
+fun SettingsDialog(
+    isUrdu: Boolean,
+    onDismiss: () -> Unit,
+    onToggleUrdu: (Boolean) -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.dp, PremiumGold),
+            shape = RoundedCornerShape(16.dp)
+        ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                    .padding(8.dp)
+                    .padding(20.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "🛠️ SIMULATION BENCHMARKS (GUEST GRADING PANEL)",
-                    style = MaterialTheme.typography.labelSmall,
+                    text = if (isUrdu) "ایپلی کیشن ترتیبات" else "Application Settings",
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = SilveryBlue,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                    color = PremiumGold
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
-                        onClick = {
-                            if (tasks.isNotEmpty()) {
-                                viewModel.simulateDailyReset()
-                            } else {
-                                Toast.makeText(viewModel.getApplication(), "Please populate tasks first!", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        Text("Simulate 10m Reset", style = MaterialTheme.typography.labelMedium)
+                    Column {
+                        Text(
+                            text = if (isUrdu) "اردو سپورٹ زبان" else "Urdu Language Support",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (isUrdu) "پورے سسٹم کے انٹرفیس کو تبدیل کریں" else "Toggle translation across columns",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = SilveryGrey
+                        )
                     }
-                    
-                    OutlinedButton(
-                        onClick = {
-                            // Find active pending tasks, simulate notification!
-                            val pending = tasks.firstOrNull { it.status == "PENDING" } ?: tasks.firstOrNull()
-                            if (pending != null) {
-                                viewModel.simulateTaskReminder(pending)
-                            } else {
-                                Toast.makeText(viewModel.getApplication(), "Schedule tasks first!", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        border = BorderStroke(1.dp, NeonCyan),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        Text("Simulate Alert Notification", style = MaterialTheme.typography.labelMedium)
-                    }
+
+                    Switch(
+                        checked = isUrdu,
+                        onCheckedChange = { onToggleUrdu(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = PureBlack,
+                            checkedTrackColor = PremiumGold,
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.DarkGray
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PureBlack),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(if (isUrdu) "بند کریں" else "Dismiss")
                 }
             }
         }
     }
 }
 
+// Dialog to Rename an activity (seamlessly accepts and renders Urdu / English keyboards)
 @Composable
-fun TaskCard(
+fun EditNameDialog(
     task: Task,
-    onStatusChange: (String) -> Unit,
-    onDelete: () -> Unit,
-    onSimulateAlarm: () -> Unit
+    isUrdu: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
 ) {
-    val cardColor = when (task.status) {
-        "COMPLETED" -> NeonSuccess.copy(alpha = 0.12f)
-        "INCOMPLETE" -> NeonError.copy(alpha = 0.10f)
-        else -> MaterialTheme.colorScheme.surface
-    }
+    var newName by remember { mutableStateOf(task.name) }
 
-    val borderColor = when (task.status) {
-        "COMPLETED" -> NeonSuccess
-        "INCOMPLETE" -> NeonError
-        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .testTag("task_item_${task.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        border = BorderStroke(1.5.dp, borderColor)
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp)
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.dp, PremiumGold),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth()
             ) {
-                // Circular tag with order "Task X"
-                Box(
-                    modifier = Modifier
-                        .size(54.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                        .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Task",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "${task.displayOrder}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                Text(
+                    text = if (isUrdu) "ٹاسک نام تبدیل کریں" else "Edit Task Name",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PremiumGold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Task details (Name and time)
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        val isMostlyUrdu = task.name.any { it.code in 0x0600..0x06FF }
-                        Text(
-                            text = task.name,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                textDirection = if (isMostlyUrdu) TextDirection.Rtl else TextDirection.Ltr
-                            ),
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                            textAlign = if (isMostlyUrdu) TextAlign.Right else TextAlign.Left
-                        )
-
-                        if (task.isNew) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 6.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(ActiveOrange)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "NEW TASK",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Target Time",
-                            tint = SilveryBlue,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Target Time: ${task.targetTime}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = SilveryBlue,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Task",
-                        tint = NeonError.copy(alpha = 0.7f)
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    label = { Text(if (isUrdu) "نیا نام یہاں درج کریں (English / اردو)" else "Enter name (Bilingual English/Urdu)") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedLabelColor = PremiumGold,
+                        unfocusedLabelColor = Color.Gray,
+                        focusedBorderColor = PremiumGold,
+                        unfocusedBorderColor = Color.Gray
                     )
-                }
-            }
+                )
 
-            Spacer(modifier = Modifier.height(10.dp))
-            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action section: Completed (✓), Incomplete (✗), Simulate Alarms
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Short simulation button
-                OutlinedButton(
-                    onClick = onSimulateAlarm,
-                    modifier = Modifier.height(32.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Alarm Icon",
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Alert Test",
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    // Check button (✓)
-                    FilledIconButton(
-                        onClick = { onStatusChange("COMPLETED") },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = if (task.status == "COMPLETED") NeonSuccess else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Mark Complete",
-                            tint = if (task.status == "COMPLETED") Color.White else SilveryBlue,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isUrdu) "منسوخ" else "Cancel", color = Color.Gray)
                     }
-
-                    // Cross button (✗)
-                    FilledIconButton(
-                        onClick = { onStatusChange("INCOMPLETE") },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = if (task.status == "INCOMPLETE") NeonError else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        modifier = Modifier.size(36.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = { if (newName.isNotBlank()) onSave(newName) },
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PureBlack),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Mark Incomplete",
-                            tint = if (task.status == "INCOMPLETE") Color.White else SilveryBlue,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Text(if (isUrdu) "محفوظ کریں" else "Save")
                     }
                 }
             }
@@ -715,510 +796,437 @@ fun TaskCard(
     }
 }
 
+// Dialog to Edit Start and End timings using native Android Dialog pickers
 @Composable
-fun EmptyStateWidget(onLoadPresets: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+fun EditTimingDialog(
+    task: Task,
+    isUrdu: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    val context = LocalContext.current
+    var startTime by remember { mutableStateOf(task.startTime) }
+    var endTime by remember { mutableStateOf(task.endTime) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.dp, PremiumGold),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(54.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Timetable Empty (شیڈول خالی ہے)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Begin by adding tasks using the Floating Button (+) or populate a clean 20-task preset below:",
-                style = MaterialTheme.typography.bodySmall,
-                color = SilveryBlue,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = onLoadPresets,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth()
             ) {
-                Text("Populate 20 Daily Tasks Presets")
+                Text(
+                    text = if (isUrdu) "اوقات کی تبدیلی" else "Edit Timetable Timings",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PremiumGold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Start Time Trigger Picker
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val parts = startTime.split(":")
+                            val hr = parts.getOrNull(0)?.toIntOrNull() ?: 12
+                            val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    startTime = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+                                },
+                                hr,
+                                min,
+                                true
+                            ).show()
+                        }
+                        .border(1.dp, Color.Gray, RoundedCornerShape(10.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isUrdu) "شروع کا وقت:" else "Start Time:", color = Color.White)
+                    Text(startTime, color = PremiumGold, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // End Time Deadline Picker
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val parts = endTime.split(":")
+                            val hr = parts.getOrNull(0)?.toIntOrNull() ?: 12
+                            val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    endTime = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+                                },
+                                hr,
+                                min,
+                                true
+                            ).show()
+                        }
+                        .border(1.dp, Color.Gray, RoundedCornerShape(10.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isUrdu) "ختم ہونے کا وقت (ڈیڈ لائن):" else "End Time (Deadline):", color = Color.White)
+                    Text(endTime, color = PremiumGold, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isUrdu) "منسوخ" else "Cancel", color = Color.Gray)
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = { onSave(startTime, endTime) },
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PureBlack),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (isUrdu) "محفوظ" else "Apply")
+                    }
+                }
             }
         }
     }
 }
 
+// Add task dialog (Supports bilingual names and provides digital clock spinners)
 @Composable
-fun AddedTasksHeadingRow(viewModel: TimetableViewModel) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "Active Reminders List",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = SilveryBlue
-        )
+fun AddTaskDialog(
+    isUrdu: Boolean,
+    onDismiss: () -> Unit,
+    onAdd: (String, String, String) -> Unit
+) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var startTime by remember { mutableStateOf("08:00") }
+    var endTime by remember { mutableStateOf("09:00") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.dp, PremiumGold),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth()
+            ) {
+                Text(
+                    text = if (isUrdu) "نیا مشغلہ شامل کریں" else "Create Custom Task",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PremiumGold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bilingual name Input accepts both Urdu and English scripting
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(if (isUrdu) "سرگرمی کا نام لکھیں" else "Task Name (English / اردو)") },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedLabelColor = PremiumGold,
+                        unfocusedLabelColor = Color.Gray,
+                        focusedBorderColor = PremiumGold,
+                        unfocusedBorderColor = Color.Gray
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Start Time Trigger Picker
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val parts = startTime.split(":")
+                            val hr = parts.getOrNull(0)?.toIntOrNull() ?: 8
+                            val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    startTime = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+                                },
+                                hr,
+                                min,
+                                true
+                            ).show()
+                        }
+                        .border(1.dp, Color.Gray, RoundedCornerShape(10.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isUrdu) "شروع ہونے کا وقت:" else "Start Time:", color = Color.White)
+                    Text(startTime, color = PremiumGold, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // End Time Deadline Picker
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val parts = endTime.split(":")
+                            val hr = parts.getOrNull(0)?.toIntOrNull() ?: 9
+                            val min = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute ->
+                                    endTime = String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+                                },
+                                hr,
+                                min,
+                                true
+                            ).show()
+                        }
+                        .border(1.dp, Color.Gray, RoundedCornerShape(10.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isUrdu) "انجام وقت (ڈیڈ لائن):" else "End Time (Deadline):", color = Color.White)
+                    Text(endTime, color = PremiumGold, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(if (isUrdu) "منسوخ" else "Cancel", color = Color.Gray)
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Button(
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                onAdd(name, startTime, endTime)
+                            } else {
+                                Toast.makeText(context, "Please write a name", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PremiumGold, contentColor = PureBlack),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(if (isUrdu) "شامل کریں" else "Schedule Task")
+                    }
+                }
+            }
+        }
     }
 }
 
+// Display historical compliance log data records cleanly
 @Composable
-fun PerformanceHistoryChart(logs: List<PerformanceLog>) {
-    if (logs.isEmpty()) {
+fun LogRecordRow(
+    log: PerformanceLog,
+    isUrdu: Boolean
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = log.dateString,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (isUrdu) "کامیابی شرح: ${log.completedTasksCount} از ${log.totalTasksCount} سرگرمیاں"
+                           else "Adherence Rate: ${log.completedTasksCount} of ${log.totalTasksCount} tasks",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SilveryGrey
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(PremiumGold.copy(alpha = 0.15f))
+                    .border(1.dp, PremiumGold, CircleShape)
+                    .size(60.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "${log.scorePercentage}%",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = PremiumGold
+                )
+            }
+        }
+    }
+}
+
+// Performance Score positioned strictly at the very bottom below the end of the task table with a 5-minute delayed unlock countdown
+@Composable
+fun BottomScoreSection(
+    viewModel: TimetableViewModel,
+    tasks: List<Task>,
+    currentTime: Calendar,
+    isUrdu: Boolean
+) {
+    val isUnlocked = viewModel.isScoreUnlocked(currentTime)
+    val finalizationTimeStr = viewModel.getFinalizationTimeString()
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    if (tasks.isEmpty()) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.dp, Color.DarkGray)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(32.dp),
+                    .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Historical tracking graph will render once daily log triggers.",
+                    text = if (isUrdu) "کوئی مشغلہ شیڈول نہیں ہے" else "Compliance Score: Empty Schedule",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = SilveryBlue,
-                    textAlign = TextAlign.Center
+                    color = Color.Gray,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
         return
     }
 
-    val displayLogs = logs.take(7).reversed() // Chronological 7 days
+    if (isUnlocked) {
+        val percent = viewModel.calculatePercentage(tasks)
+        val completed = tasks.count { it.status == "COMPLETED" }
+        val total = tasks.size
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = "Progress tracking trends (Last 7 logs)",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                displayLogs.forEach { log ->
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom
-                    ) {
-                        Text(
-                            text = "${log.scorePercentage}%",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = when {
-                                log.scorePercentage >= 80 -> NeonSuccess
-                                log.scorePercentage >= 50 -> ActiveOrange
-                                else -> NeonError
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Render Canvas pillar bar
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight(fraction = (log.scorePercentage.toFloat() / 100f).coerceAtLeast(0.08f))
-                                .width(22.dp)
-                                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                .background(
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.primary,
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                                        )
-                                    )
-                                )
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        val dateParts = log.dateString.split(",")
-                        val dayStr = if (dateParts.isNotEmpty()) dateParts[0] else log.dateString
-                        Text(
-                            text = dayStr,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = SilveryBlue,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun HistoryListItem(log: PerformanceLog, onDelete: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = log.dateString,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Score Tally: ${log.completedTasksCount} Completed of ${log.totalTasksCount} Total",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = SilveryBlue
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        when {
-                            log.scorePercentage >= 80 -> NeonSuccess.copy(alpha = 0.15f)
-                            log.scorePercentage >= 50 -> ActiveOrange.copy(alpha = 0.15f)
-                            else -> NeonError.copy(alpha = 0.15f)
-                        }
-                    )
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "${log.scorePercentage}%",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    color = when {
-                        log.scorePercentage >= 80 -> NeonSuccess
-                        log.scorePercentage >= 50 -> ActiveOrange
-                        else -> NeonError
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun AddTaskDialog(
-    onDismiss: () -> Unit,
-    onAdd: (String, String) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var targetTime by remember { mutableStateOf("09:00") }
-    var isUrduRtl by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-
-    Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.5.dp, PremiumGold)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                Text(
-                    text = "⏰ Add Task (نیا مَشْغَلَہ)",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Preferred Urdu Align / اردو لکھائی",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Switch(
-                        checked = isUrduRtl,
-                        onCheckedChange = { isUrduRtl = it }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = {
-                        Text(if (isUrduRtl) "کام یا مَشْغَلَہ لکھیں" else "Task Name (e.g. Fajr, Breakfast)")
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("add_task_dialog_name"),
-                    shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        textAlign = if (isUrduRtl) TextAlign.Right else TextAlign.Left,
-                        textDirection = if (isUrduRtl) TextDirection.Rtl else TextDirection.Ltr
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Time picker button
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
-                        .clickable {
-                            showTimePicker(context) { selected ->
-                                targetTime = selected
-                            }
-                        }
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Target Time",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = SilveryBlue
-                        )
-                        Text(
-                            text = targetTime,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Select Time",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Cancel")
-                    }
-
-                    Button(
-                        onClick = {
-                            if (name.trim().isNotEmpty()) {
-                                onAdd(name.trim(), targetTime)
-                            } else {
-                                Toast.makeText(context, "Please write a task name!", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier.weight(1.5f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text("Schedule Task")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SummaryDialog(
-    report: TimetableViewModel.PerformanceReport,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(16.dp)
+                    .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "🎉 Daily Score Calculated!",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = if (isUrdu) "آج کی مجموعی کارکردگی کا سکور" else "DAILY COMPLIANCE SCORE",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = PremiumGold
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "$percent%",
+                    style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.primary
+                    color = PremiumGold
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Radial circle meter
-                Box(
-                    modifier = Modifier
-                        .size(110.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
-                        .border(3.dp, MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${report.percentage}%",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "COMPLIANCE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = SilveryBlue,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "Performance Breakdown",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = SilveryBlue
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceAround
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "✓ Completed", style = MaterialTheme.typography.labelSmall, color = NeonSuccess)
-                                Text(text = "${report.completedCount}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = NeonSuccess)
-                            }
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "✗ Incomplete", style = MaterialTheme.typography.labelSmall, color = NeonError)
-                                Text(text = "${report.totalCount - report.completedCount}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = NeonError)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = if (report.percentage >= 80) "MashaAllah! Phenomenal consistency today!" else "Keep striving! Small daily progress compounds into success.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
                 Spacer(modifier = Modifier.height(4.dp))
+
                 Text(
-                    text = if (report.percentage >= 80) "ماشاءاللہ! آج کی کارکردگی شاندار تھی۔" else "کوشش جاری رکھیں! روزانہ کی محنت کامیابی کی کلید ہے۔",
+                    text = if (isUrdu) "مکمل شدہ سرگرمیاں: $completed از $total" else "Completed Routines: $completed of $total Tasks",
                     style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    color = Color.White
+                )
+            }
+        }
+    } else {
+        // Countdown clock representation
+        val countdownSeconds = viewModel.getCountdownSecondsRemaining(currentTime)
+        val mins = countdownSeconds / 60
+        val secs = countdownSeconds % 60
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkGreySurface),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Hidden Score",
+                    tint = Color.Gray,
+                    modifier = Modifier.size(24.dp)
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Ready for Tomorrow (اگلے دن کی تیاری)")
-                }
+                Text(
+                    text = if (isUrdu) "آج کا رزلٹ لاک ہے" else "Compliance Score Locked",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = if (isUrdu)
+                        "سکور $finalizationTimeStr پر کھلے گا (باقی وقت: ${String.format(Locale.getDefault(), "%02d:%02d", mins, secs)})"
+                        else "Compliance calculation unlocks at $finalizationTimeStr (Remaining: ${String.format(Locale.getDefault(), "%02d:%02d", mins, secs)})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = SilveryGrey,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
-}
-
-fun showTimePicker(context: Context, onTimeSelected: (String) -> Unit) {
-    val calendar = Calendar.getInstance()
-    val hour = calendar.get(Calendar.HOUR_OF_DAY)
-    val minute = calendar.get(Calendar.MINUTE)
-
-    TimePickerDialog(
-        context,
-        { _, h, m ->
-            val formattedTime = String.format(Locale.getDefault(), "%02d:%02d", h, m)
-            onTimeSelected(formattedTime)
-        },
-        hour,
-        minute,
-        true
-    ).show()
 }

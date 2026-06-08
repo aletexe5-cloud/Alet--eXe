@@ -39,6 +39,10 @@ class TaskRepository(
         taskDao.resetAllTasks()
     }
 
+    suspend fun deleteUnlockedTasks() {
+        taskDao.deleteUnlockedTasks()
+    }
+
     suspend fun clearAllTasks() {
         taskDao.clearAllTasks()
     }

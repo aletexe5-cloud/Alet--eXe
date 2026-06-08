@@ -5,10 +5,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TaskDao {
-    @Query("SELECT * FROM tasks ORDER BY targetTime ASC, id ASC")
+    @Query("SELECT * FROM tasks ORDER BY startTime ASC, id ASC")
     fun getAllTasks(): Flow<List<Task>>
 
-    @Query("SELECT * FROM tasks ORDER BY targetTime ASC, id ASC")
+    @Query("SELECT * FROM tasks ORDER BY startTime ASC, id ASC")
     suspend fun getTasksSync(): List<Task>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -29,8 +29,11 @@ interface TaskDao {
     @Query("UPDATE tasks SET isNew = 0")
     suspend fun clearNewStatus()
 
-    @Query("UPDATE tasks SET status = 'PENDING', notified = 0, isNew = 0")
+    @Query("UPDATE tasks SET status = 'PENDING', notified = 0, endNotified = 0, isNew = 0")
     suspend fun resetAllTasks()
+
+    @Query("DELETE FROM tasks WHERE isLocked = 0")
+    suspend fun deleteUnlockedTasks()
 
     @Query("DELETE FROM tasks")
     suspend fun clearAllTasks()
